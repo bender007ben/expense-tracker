@@ -140,7 +140,7 @@
                 <button 
                 onClick={(e) => { 
                     e.stopPropagation(); 
-                    if(isSelected) handleDelete(t.id); // Double check, though UI hides it
+                    if(isSelected) handleDelete(t.id);
                 }}
                 className={`
                     transition-all duration-300 p-2 text-rose-800 
@@ -159,21 +159,48 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('overview'); 
             const [isMobileFormOpen, setIsMobileFormOpen] = useState(false);
-            
-            // Selection State for deletion logic
             const [selectedTransactionId, setSelectedTransactionId] = useState(null);
 
-            // Initial Data
-            const [transactions, setTransactions] = useState([
-                { id: 1, desc: "Cloud Infrastruktur", amount: -240.00, date: "2023-10-24", type: "expense", category: "Technik" },
-                { id: 2, desc: "Studio Equipment", amount: -1120.50, date: "2023-10-22", type: "expense", category: "Investition" },
-                { id: 3, desc: "Honorareingang", amount: 3500.00, date: "2023-10-21", type: "income", category: "Einkommen" },
-                { id: 4, desc: "Miete Workspace", amount: -850.00, date: "2023-10-18", type: "expense", category: "Fixkosten" },
-                { id: 5, desc: "Kaffee & Snacks", amount: -45.20, date: "2023-10-17", type: "expense", category: "Verpflegung" },
-            ]);
+            // --- LOCAL STORAGE INIT ---
+            
+            // Transactions
+            const [transactions, setTransactions] = useState(() => {
+                const saved = localStorage.getItem('transactions');
+                return saved ? JSON.parse(saved) : [
+                    { id: 1, desc: "Cloud Infrastruktur", amount: -240.00, date: "2023-10-24", type: "expense", category: "Technik" },
+                    { id: 2, desc: "Studio Equipment", amount: -1120.50, date: "2023-10-22", type: "expense", category: "Investition" },
+                    { id: 3, desc: "Honorareingang", amount: 3500.00, date: "2023-10-21", type: "income", category: "Einkommen" },
+                    { id: 4, desc: "Miete Workspace", amount: -850.00, date: "2023-10-18", type: "expense", category: "Fixkosten" },
+                    { id: 5, desc: "Kaffee & Snacks", amount: -45.20, date: "2023-10-17", type: "expense", category: "Verpflegung" },
+                ];
+            });
 
-            const [categories, setCategories] = useState(["Wohnen", "Verpflegung", "Technik", "Freizeit", "Transport", "Investition", "Sonstiges"]);
-            const [budgetLimit, setBudgetLimit] = useState(2000);
+            // Categories
+            const [categories, setCategories] = useState(() => {
+                const saved = localStorage.getItem('categories');
+                return saved ? JSON.parse(saved) : ["Wohnen", "Verpflegung", "Technik", "Freizeit", "Transport", "Investition", "Sonstiges"];
+            });
+
+            // Budget
+            const [budgetLimit, setBudgetLimit] = useState(() => {
+                const saved = localStorage.getItem('budgetLimit');
+                return saved ? Number(saved) : 2000;
+            });
+
+            // --- PERSISTENCE EFFECTS ---
+
+            useEffect(() => {
+                localStorage.setItem('transactions', JSON.stringify(transactions));
+            }, [transactions]);
+
+            useEffect(() => {
+                localStorage.setItem('categories', JSON.stringify(categories));
+            }, [categories]);
+
+            useEffect(() => {
+                localStorage.setItem('budgetLimit', budgetLimit);
+            }, [budgetLimit]);
+
 
             // Form Fields
             const [newDesc, setNewDesc] = useState("");
@@ -227,10 +254,9 @@
                 if(selectedTransactionId === id) setSelectedTransactionId(null);
             };
 
-            // Toggle Selection Handler
             const handleSelectTransaction = (id) => {
                 if (selectedTransactionId === id) {
-                    setSelectedTransactionId(null); // Deselect if clicked again
+                    setSelectedTransactionId(null);
                 } else {
                     setSelectedTransactionId(id);
                 }
@@ -239,6 +265,8 @@
             const handleResetData = () => {
                 if(window.confirm("Wirklich alle Daten löschen?")) {
                     setTransactions([]);
+                    // Optional: Reset categories/budget too? keeping them for now usually safer
+                    // setCategories([...defaults...]) 
                 }
             };
 
@@ -546,5 +574,3 @@
     </script>
 </body>
 </html>
-
-
