@@ -112,7 +112,7 @@
                 <span className="text-[9px] md:text-[10px] font-bold uppercase mb-1 md:mb-2 opacity-50 flex items-center gap-1">
                 {title} {Icon && <Icon size={10} className="md:w-3 md:h-3"/>}
                 </span>
-                <span className={text-sm md:text-xl font-mono font-medium truncate w-full ${colorClass}}>
+                <span className={`text-sm md:text-xl font-mono font-medium truncate w-full ${colorClass}`}>
                 {amount}
                 </span>
             </div>
@@ -121,14 +121,14 @@
         const TransactionItem = ({ t, formatMoney, handleDelete, isSelected, onSelect }) => (
             <div 
                 onClick={() => onSelect(t.id)}
-                className={group relative flex justify-between items-center pb-3 md:pb-4 border-b border-black/5 -mx-2 px-2 transition-colors rounded select-none cursor-pointer ${isSelected ? 'bg-black/5' : 'hover:bg-black/[0.02]'}}
+                className={`group relative flex justify-between items-center pb-3 md:pb-4 border-b border-black/5 -mx-2 px-2 transition-colors rounded select-none cursor-pointer ${isSelected ? 'bg-black/5' : 'hover:bg-black/[0.02]'}`}
             >
                 <div className="flex flex-col max-w-[60%]">
                     <span className="font-mono text-[9px] md:text-[10px] opacity-40 mb-1">{t.date}</span>
                     <span className="font-bold text-xs md:text-sm uppercase tracking-wide truncate">{t.desc}</span>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                    <span className={font-mono text-sm md:text-lg block ${t.type === 'income' ? 'text-emerald-800' : 'text-[#1a1a1a]'}}>
+                    <span className={`font-mono text-sm md:text-lg block ${t.type === 'income' ? 'text-emerald-800' : 'text-[#1a1a1a]'}`}>
                         {t.amount > 0 ? '+' : ''}{formatMoney(t.amount)}
                     </span>
                     <div className="text-[8px] md:text-[10px] font-bold opacity-40 uppercase bg-black/5 px-1 rounded mt-1">
@@ -278,7 +278,7 @@
             };
 
             const handleDeleteCategory = (cat) => {
-                if(window.confirm(Kategorie "${cat}" löschen?)) {
+                if(window.confirm(`Kategorie "${cat}" löschen?`)) {
                     setCategories(categories.filter(c => c !== cat));
                     if(newCategory === cat) setNewCategory(categories[0] || "Sonstiges");
                 }
@@ -291,7 +291,7 @@
                     if (grain) {
                         const x = (e.clientX / window.innerWidth) * 10;
                         const y = (e.clientY / window.innerHeight) * 10;
-                        grain.style.transform = translate(${x}px, ${y}px);
+                        grain.style.transform = `translate(${x}px, ${y}px)`;
                     }
                 };
                 window.addEventListener('mousemove', handleMouseMove);
@@ -321,13 +321,13 @@
                                     Ausgaben<br/>Archiv
                                 </h1>
                                 <nav className="space-y-6">
-                                    <button onClick={() => setActiveTab('overview')} className={flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'overview' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}}>
+                                    <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'overview' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
                                         <IconArchive size={16} /> 01. ÜBERSICHT
                                     </button>
-                                    <button onClick={() => setActiveTab('analytics')} className={flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'analytics' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}}>
+                                    <button onClick={() => setActiveTab('analytics')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'analytics' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
                                         <IconBarChart3 size={16} /> 02. ANALYSE
                                     </button>
-                                    <button onClick={() => setActiveTab('settings')} className={flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'settings' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}}>
+                                    <button onClick={() => setActiveTab('settings')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'settings' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
                                         <IconSettings size={16} /> 03. EINSTELLUNGEN
                                     </button>
                                 </nav>
@@ -360,14 +360,14 @@
                                                 <IconWallet size={14} /> Aktueller Kontostand
                                             </span>
                                             <div>
-                                                <span className={text-4xl md:text-6xl font-mono font-medium tracking-tighter ${totalBalance < 0 ? 'text-rose-800' : ''}}>
+                                                <span className={`text-4xl md:text-6xl font-mono font-medium tracking-tighter ${totalBalance < 0 ? 'text-rose-800' : ''}`}>
                                                     {formatMoney(totalBalance)}
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                            <StatsCard title="Einnahmen" amount={+${formatMoney(totalIncome)}} icon={IconTrendingUp} colorClass="text-emerald-800" />
-                                            <StatsCard title="Ausgaben" amount={-${formatMoney(totalExpense)}} icon={IconTrendingDown} colorClass="text-rose-800" />
+                                            <StatsCard title="Einnahmen" amount={`+${formatMoney(totalIncome)}`} icon={IconTrendingUp} colorClass="text-emerald-800" />
+                                            <StatsCard title="Ausgaben" amount={`-${formatMoney(totalExpense)}`} icon={IconTrendingDown} colorClass="text-rose-800" />
                                             
                                             <div className="col-span-2 deboss-container p-4 md:p-6 flex flex-col justify-center relative overflow-hidden">
                                                 <div className="flex justify-between items-end mb-2 z-10 relative">
@@ -375,7 +375,7 @@
                                                     <span className="font-mono text-xs opacity-70">{Math.round(budgetProgress)}%</span>
                                                 </div>
                                                 <div className="absolute left-0 bottom-0 h-1 bg-black/5 w-full">
-                                                    <div className={h-full transition-all duration-1000 ${budgetProgress > 90 ? 'bg-rose-800' : 'bg-[#1a1a1a]'}} style={{ width: ${budgetProgress}% }}></div>
+                                                    <div className={`h-full transition-all duration-1000 ${budgetProgress > 90 ? 'bg-rose-800' : 'bg-[#1a1a1a]'}`} style={{ width: `${budgetProgress}%` }}></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -409,7 +409,7 @@
                                         </div>
 
                                         {/* Form */}
-                                        <div className={space-y-6 lg:sticky lg:top-6 order-1 lg:order-2 ${isMobileFormOpen ? 'block' : 'hidden lg:block'}}>
+                                        <div className={`space-y-6 lg:sticky lg:top-6 order-1 lg:order-2 ${isMobileFormOpen ? 'block' : 'hidden lg:block'}`}>
                                             <div className="deboss-container p-4 md:p-6 bg-[#e4e2dd] shadow-lg lg:shadow-none border border-black/5 lg:border-none relative">
                                                 <button onClick={() => setIsMobileFormOpen(false)} className="absolute top-2 right-2 p-2 lg:hidden text-black/50">
                                                     <IconX size={20} />
@@ -419,8 +419,8 @@
                                                 </h3>
                                                 <div className="space-y-5">
                                                     <div className="flex bg-black/5 p-1 rounded-sm">
-                                                        <button onClick={() => setNewType('expense')} className={flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'expense' ? 'bg-[#e8e6e1] shadow-sm text-rose-900' : 'opacity-40'}}>Ausgabe</button>
-                                                        <button onClick={() => setNewType('income')} className={flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'income' ? 'bg-[#e8e6e1] shadow-sm text-emerald-900' : 'opacity-40'}}>Einnahme</button>
+                                                        <button onClick={() => setNewType('expense')} className={`flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'expense' ? 'bg-[#e8e6e1] shadow-sm text-rose-900' : 'opacity-40'}`}>Ausgabe</button>
+                                                        <button onClick={() => setNewType('income')} className={`flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'income' ? 'bg-[#e8e6e1] shadow-sm text-emerald-900' : 'opacity-40'}`}>Einnahme</button>
                                                     </div>
                                                     <div>
                                                         <label className="text-[10px] font-bold opacity-40 block mb-1 uppercase">Beschreibung</label>
@@ -469,7 +469,7 @@
                                                                 <span className="font-mono opacity-60">{Math.round(percent)}%</span>
                                                             </div>
                                                             <div className="h-8 bg-black/5 relative w-full rounded-sm overflow-hidden flex items-center px-2">
-                                                                <div className="absolute left-0 top-0 h-full bg-[#1a1a1a] opacity-80" style={{ width: ${percent}% }}></div>
+                                                                <div className="absolute left-0 top-0 h-full bg-[#1a1a1a] opacity-80" style={{ width: `${percent}%` }}></div>
                                                                 <span className="relative z-10 font-mono text-xs mix-blend-difference text-white/80">{formatMoney(amount)}</span>
                                                             </div>
                                                         </div>
@@ -548,13 +548,13 @@
 
                     {/* Mobile Bottom Navigation */}
                     <nav className="lg:hidden fixed bottom-0 left-0 w-full bg-[#e8e6e1] border-t border-black/10 pb-safe pt-2 px-6 z-50 flex justify-between items-center h-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-                        <button onClick={() => { setActiveTab('overview'); setIsMobileFormOpen(false); }} className={flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'overview' ? 'opacity-100 scale-105' : 'opacity-40'}}>
+                        <button onClick={() => { setActiveTab('overview'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'overview' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
                             <IconArchive size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Start</span>
                         </button>
-                        <button onClick={() => { setActiveTab('analytics'); setIsMobileFormOpen(false); }} className={flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'analytics' ? 'opacity-100 scale-105' : 'opacity-40'}}>
+                        <button onClick={() => { setActiveTab('analytics'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'analytics' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
                             <IconPieChart size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Analyse</span>
                         </button>
-                        <button onClick={() => { setActiveTab('settings'); setIsMobileFormOpen(false); }} className={flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'settings' ? 'opacity-100 scale-105' : 'opacity-40'}}>
+                        <button onClick={() => { setActiveTab('settings'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'settings' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
                             <IconSettings size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Setup</span>
                         </button>
                     </nav>
@@ -574,3 +574,5 @@
     </script>
 </body>
 </html>
+
+
