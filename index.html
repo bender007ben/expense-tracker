@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ausgaben Archiv CH</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM (Production Versionen für bessere Stabilität) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (zum Übersetzen von JSX im Browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --paper-base: #e8e6e1;
+            --paper-shadow-light: #ffffff;
+            --paper-shadow-dark: #b8b6b1;
+            --deboss-depth: 4px;
+        }
+
+        body {
+            background-color: var(--paper-base);
+            font-family: 'Outfit', sans-serif;
+            color: #1a1a1a;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .deboss-container {
+            background: var(--paper-base);
+            box-shadow: 
+                inset var(--deboss-depth) var(--deboss-depth) calc(var(--deboss-depth) * 2) var(--paper-shadow-dark),
+                inset calc(var(--deboss-depth) * -1) calc(var(--deboss-depth) * -1) calc(var(--deboss-depth) * 2) var(--paper-shadow-light);
+            border-radius: 2px;
+        }
+
+        .heading-stamp {
+            letter-spacing: 0.2em;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: var(--paper-shadow-dark); border-radius: 10px; }
+
+        .btn-press:active { transform: scale(0.96); }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+        /* Loading State Styling */
+        #root:empty::before {
+            content: 'Lade System...';
+            display: block;
+            text-align: center;
+            padding-top: 20vh;
+            font-family: 'JetBrains Mono', monospace;
+            opacity: 0.5;
+        }
+        
+        /* Date Input Styling Override */
+        input[type="date"] {
+            background: transparent;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Sicherstellen, dass React geladen ist
+        const { useState, useEffect, useMemo } = React;
+
+        // --- ICONS (SVG Components) ---
+        const IconTrash2 = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+        );
+        const IconEdit3 = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        );
+        const IconTrendingUp = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        );
+        const IconTrendingDown = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+        );
+        const IconArchive = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+        );
+        const IconSettings = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        );
+        const IconBarChart3 = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        );
+        const IconPlus = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        );
+        const IconCheck = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"/></svg>
+        );
+        const IconX = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        );
+        const IconWallet = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>
+        );
+        const IconPieChart = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        );
+        const IconChevronDown = ({ size = 24, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m6 9 6 6 6-6"/></svg>
+        );
+
+        // --- COMPONENTS ---
+
+        const StatsCard = ({ title, amount, type, icon: Icon, colorClass }) => (
+            <div className="deboss-container p-3 md:p-4 flex flex-col justify-center items-center text-center h-full">
+                <span className="text-[9px] md:text-[10px] font-bold uppercase mb-1 md:mb-2 opacity-50 flex items-center gap-1">
+                {title} {Icon && <Icon size={10} className="md:w-3 md:h-3"/>}
+                </span>
+                <span className={`text-sm md:text-xl font-mono font-medium truncate w-full ${colorClass}`}>
+                {amount}
+                </span>
+            </div>
+        );
+
+        const TransactionItem = ({ t, formatMoney, handleDelete, handleEdit, isSelected, onSelect }) => (
+            <div 
+                onClick={() => onSelect(t.id)}
+                className={`group relative flex justify-between items-center pb-3 md:pb-4 border-b border-black/5 -mx-2 px-2 transition-colors rounded select-none cursor-pointer ${isSelected ? 'bg-black/5' : 'hover:bg-black/[0.02]'}`}
+            >
+                <div className="flex flex-col max-w-[60%]">
+                    <span className="font-mono text-[9px] md:text-[10px] opacity-40 mb-1">{t.date}</span>
+                    <span className="font-bold text-xs md:text-sm uppercase tracking-wide truncate">{t.desc}</span>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                    <span className={`font-mono text-sm md:text-lg block ${t.type === 'income' ? 'text-emerald-800' : 'text-[#1a1a1a]'}`}>
+                        {t.amount > 0 ? '+' : ''}{formatMoney(t.amount)}
+                    </span>
+                    <div className="text-[8px] md:text-[10px] font-bold opacity-40 uppercase bg-black/5 px-1 rounded mt-1">
+                        {t.category}
+                    </div>
+                </div>
+                
+                {/* Actions container - Visibility controlled by selection state */}
+                <div className={`
+                    absolute right-0 top-1/2 -translate-y-1/2 
+                    flex items-center gap-2 pr-2 bg-[#e8e6e1] shadow-sm z-20 transition-all duration-300
+                    ${isSelected ? 'opacity-100 visible translate-x-0' : 'opacity-0 invisible translate-x-4 pointer-events-none'}
+                `}>
+                    <button 
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if(isSelected) handleEdit(t); 
+                        }}
+                        className="p-2 text-stone-600 hover:text-black hover:bg-black/5 rounded-full transition-colors"
+                        title="Bearbeiten"
+                    >
+                        <IconEdit3 size={16} />
+                    </button>
+                    <button 
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if(isSelected) handleDelete(t.id); 
+                        }}
+                        className="p-2 text-rose-800 hover:text-rose-950 hover:bg-rose-100/50 rounded-full transition-colors"
+                        title="Löschen"
+                    >
+                        <IconTrash2 size={16} />
+                    </button>
+                </div>
+            </div>
+        );
+
+        // --- HELPER FOR LOCAL STORAGE ---
+        const loadFromLS = (key, defaultValue) => {
+            try {
+                const saved = localStorage.getItem(key);
+                return saved ? JSON.parse(saved) : defaultValue;
+            } catch (e) {
+                console.warn("LS Load Error", e);
+                return defaultValue;
+            }
+        };
+
+        // --- MAIN APP ---
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('overview'); 
+            const [isMobileFormOpen, setIsMobileFormOpen] = useState(false);
+            const [selectedTransactionId, setSelectedTransactionId] = useState(null);
+
+            // STATE INITIALIZATION (Load from LS or Default)
+            const [transactions, setTransactions] = useState(() => loadFromLS('transactions', [
+                { id: 1, desc: "Cloud Infrastruktur", amount: -240.00, date: "2023-10-24", type: "expense", category: "Technik" },
+                { id: 2, desc: "Studio Equipment", amount: -1120.50, date: "2023-10-22", type: "expense", category: "Investition" },
+                { id: 3, desc: "Honorareingang", amount: 3500.00, date: "2023-10-21", type: "income", category: "Einkommen" },
+                { id: 4, desc: "Miete Workspace", amount: -850.00, date: "2023-10-18", type: "expense", category: "Fixkosten" },
+            ]));
+
+            const [categories, setCategories] = useState(() => loadFromLS('categories', [
+                "Wohnen", "Verpflegung", "Technik", "Freizeit", "Transport", "Investition", "Sonstiges"
+            ]));
+
+            const [budgetLimit, setBudgetLimit] = useState(() => loadFromLS('budgetLimit', 2000));
+
+            // Form Fields
+            const [newDesc, setNewDesc] = useState("");
+            const [newAmount, setNewAmount] = useState("");
+            const [newType, setNewType] = useState("expense");
+            const [newCategory, setNewCategory] = useState("Sonstiges");
+            const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
+            
+            // Edit Mode State
+            const [editingId, setEditingId] = useState(null);
+
+            const [newCatName, setNewCatName] = useState("");
+
+            // --- LOCAL STORAGE EFFECTS ---
+            useEffect(() => {
+                // Sort transactions by date descending before saving
+                const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+                localStorage.setItem('transactions', JSON.stringify(sorted));
+            }, [transactions]);
+
+            useEffect(() => {
+                localStorage.setItem('categories', JSON.stringify(categories));
+            }, [categories]);
+
+            useEffect(() => {
+                localStorage.setItem('budgetLimit', JSON.stringify(budgetLimit));
+            }, [budgetLimit]);
+
+            // Calculations
+            const totalBalance = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+            const totalIncome = transactions.filter(t => t.amount > 0).reduce((acc, curr) => acc + curr.amount, 0);
+            const totalExpense = Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, curr) => acc + curr.amount, 0));
+            const budgetProgress = Math.min((totalExpense / budgetLimit) * 100, 100);
+
+            const expensesByCategory = useMemo(() => {
+                const categoriesMap = {};
+                transactions.filter(t => t.type === 'expense').forEach(t => {
+                    const cat = t.category || 'Sonstiges';
+                    categoriesMap[cat] = (categoriesMap[cat] || 0) + Math.abs(t.amount);
+                });
+                return Object.entries(categoriesMap).sort((a, b) => b[1] - a[1]);
+            }, [transactions]);
+
+            const formatMoney = (amount) => {
+                return new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' }).format(amount);
+            };
+
+            const handleSaveTransaction = () => {
+                if (!newDesc || !newAmount || !newDate) return;
+                
+                const amountVal = parseFloat(newAmount);
+                const finalAmount = newType === 'expense' ? -Math.abs(amountVal) : Math.abs(amountVal);
+                
+                // If Editing
+                if (editingId) {
+                    const updatedTransactions = transactions.map(t => {
+                        if (t.id === editingId) {
+                            return {
+                                ...t,
+                                desc: newDesc,
+                                amount: finalAmount,
+                                date: newDate,
+                                type: newType,
+                                category: newType === 'income' ? 'Einkommen' : newCategory
+                            };
+                        }
+                        return t;
+                    });
+                    setTransactions(updatedTransactions);
+                    setEditingId(null);
+                } 
+                // If New
+                else {
+                    const newTransaction = {
+                        id: Date.now(),
+                        desc: newDesc,
+                        amount: finalAmount,
+                        date: newDate,
+                        type: newType,
+                        category: newType === 'income' ? 'Einkommen' : newCategory
+                    };
+                    setTransactions([newTransaction, ...transactions]);
+                }
+
+                // Reset Form
+                setNewDesc("");
+                setNewAmount("");
+                setNewDate(new Date().toISOString().split('T')[0]);
+                setIsMobileFormOpen(false);
+                setSelectedTransactionId(null);
+            };
+
+            const startEditing = (t) => {
+                setEditingId(t.id);
+                setNewDesc(t.desc);
+                setNewAmount(Math.abs(t.amount).toString()); // Show positive in input
+                setNewType(t.type);
+                setNewCategory(t.category);
+                setNewDate(t.date);
+                
+                // Switch to overview if on mobile and not already there, and open form
+                setActiveTab('overview');
+                setIsMobileFormOpen(true);
+                
+                // Scroll to top to see form
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const cancelEdit = () => {
+                setEditingId(null);
+                setNewDesc("");
+                setNewAmount("");
+                setNewDate(new Date().toISOString().split('T')[0]);
+                setIsMobileFormOpen(false);
+            };
+
+            const handleDelete = (id) => {
+                setTransactions(transactions.filter(t => t.id !== id));
+                if(selectedTransactionId === id) setSelectedTransactionId(null);
+                if(editingId === id) cancelEdit();
+            };
+
+            const handleSelectTransaction = (id) => {
+                if (selectedTransactionId === id) {
+                    setSelectedTransactionId(null);
+                } else {
+                    setSelectedTransactionId(id);
+                }
+            };
+
+            const handleResetData = () => {
+                if(window.confirm("Wirklich alle Daten löschen?")) {
+                    setTransactions([]);
+                }
+            };
+
+            const handleAddCategory = () => {
+                if(newCatName && !categories.includes(newCatName)) {
+                    setCategories([...categories, newCatName]);
+                    setNewCatName("");
+                }
+            };
+
+            const handleDeleteCategory = (cat) => {
+                if(window.confirm(`Kategorie "${cat}" löschen?`)) {
+                    setCategories(categories.filter(c => c !== cat));
+                    if(newCategory === cat) setNewCategory(categories[0] || "Sonstiges");
+                }
+            };
+
+            // Grain Effect
+            useEffect(() => {
+                const handleMouseMove = (e) => {
+                    const grain = document.getElementById('grain-overlay');
+                    if (grain) {
+                        const x = (e.clientX / window.innerWidth) * 10;
+                        const y = (e.clientY / window.innerHeight) * 10;
+                        grain.style.transform = `translate(${x}px, ${y}px)`;
+                    }
+                };
+                window.addEventListener('mousemove', handleMouseMove);
+                return () => window.removeEventListener('mousemove', handleMouseMove);
+            }, []);
+
+            return (
+                <div className="min-h-screen relative font-sans text-[#1a1a1a] pb-24 lg:pb-0" onClick={() => setSelectedTransactionId(null)}>
+                    
+                    {/* Grain Filter Overlay */}
+                    <div id="grain-overlay" className="fixed top-0 left-0 w-[120%] h-[120%] pointer-events-none z-0 opacity-[0.12] mix-blend-multiply" style={{marginLeft: '-10%', marginTop: '-10%'}}>
+                        <svg className="w-full h-full">
+                            <filter id="noiseFilter">
+                                <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/>
+                                <feColorMatrix type="saturate" values="0"/>
+                            </filter>
+                            <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+                        </svg>
+                    </div>
+
+                    <main className="w-full max-w-6xl mx-auto grid grid-cols-12 gap-8 p-4 md:p-12 relative z-10" onClick={(e) => e.stopPropagation()}>
+                        
+                        {/* Desktop Sidebar */}
+                        <aside className="hidden lg:flex col-span-3 flex-col justify-between py-4 h-[calc(100vh-6rem)] sticky top-12">
+                            <div>
+                                <h1 className="heading-stamp text-2xl mb-12 leading-none border-l-4 border-[#1a1a1a] pl-4">
+                                    Ausgaben<br/>Archiv
+                                </h1>
+                                <nav className="space-y-6">
+                                    <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'overview' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
+                                        <IconArchive size={16} /> 01. ÜBERSICHT
+                                    </button>
+                                    <button onClick={() => setActiveTab('analytics')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'analytics' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
+                                        <IconBarChart3 size={16} /> 02. ANALYSE
+                                    </button>
+                                    <button onClick={() => setActiveTab('settings')} className={`flex items-center gap-3 text-sm font-bold w-full text-left transition-all ${activeTab === 'settings' ? 'opacity-100 border-b-2 border-black pb-1' : 'opacity-40 hover:opacity-100'}`}>
+                                        <IconSettings size={16} /> 03. EINSTELLUNGEN
+                                    </button>
+                                </nav>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-mono uppercase opacity-50 leading-relaxed">
+                                    System: Online<br/>Ref: 992-001-CH
+                                </p>
+                            </div>
+                        </aside>
+
+                        {/* Mobile Header */}
+                        <div className="lg:hidden col-span-12 flex justify-between items-center mb-2">
+                            <h1 className="heading-stamp text-lg leading-none border-l-4 border-[#1a1a1a] pl-3">
+                                Ausgaben<br/>Archiv
+                            </h1>
+                        </div>
+
+                        {/* --- CONTENT AREA --- */}
+                        <section className="col-span-12 lg:col-span-9 min-h-[80vh]">
+                            
+                            {/* OVERVIEW TAB */}
+                            {activeTab === 'overview' && (
+                                <div className="space-y-6 md:space-y-8">
+                                    
+                                    {/* Stats */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                                        <div className="deboss-container p-6 md:p-8 flex flex-col justify-between min-h-[160px] md:min-h-[200px]">
+                                            <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest opacity-60 flex items-center gap-2">
+                                                <IconWallet size={14} /> Aktueller Kontostand
+                                            </span>
+                                            <div>
+                                                <span className={`text-4xl md:text-6xl font-mono font-medium tracking-tighter ${totalBalance < 0 ? 'text-rose-800' : ''}`}>
+                                                    {formatMoney(totalBalance)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                            <StatsCard title="Einnahmen" amount={`+${formatMoney(totalIncome)}`} icon={IconTrendingUp} colorClass="text-emerald-800" />
+                                            <StatsCard title="Ausgaben" amount={`-${formatMoney(totalExpense)}`} icon={IconTrendingDown} colorClass="text-rose-800" />
+                                            
+                                            <div className="col-span-2 deboss-container p-4 md:p-6 flex flex-col justify-center relative overflow-hidden">
+                                                <div className="flex justify-between items-end mb-2 z-10 relative">
+                                                    <span className="text-[9px] md:text-[10px] font-bold uppercase opacity-50">Budget ({formatMoney(budgetLimit)})</span>
+                                                    <span className="font-mono text-xs opacity-70">{Math.round(budgetProgress)}%</span>
+                                                </div>
+                                                <div className="absolute left-0 bottom-0 h-1 bg-black/5 w-full">
+                                                    <div className={`h-full transition-all duration-1000 ${budgetProgress > 90 ? 'bg-rose-800' : 'bg-[#1a1a1a]'}`} style={{ width: `${budgetProgress}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-start">
+                                        {/* List */}
+                                        <div className="lg:col-span-2 deboss-container h-[400px] md:h-[550px] flex flex-col relative order-2 lg:order-1">
+                                            <div className="p-4 md:p-6 border-b border-black/5 flex justify-between items-center bg-[#e8e6e1]/50 backdrop-blur-sm z-10 sticky top-0">
+                                                <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest">Buchungsjournal</h3>
+                                                <span className="font-mono text-[9px] md:text-[10px] opacity-40 hidden md:inline">SORT: DATUM</span>
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 custom-scroll">
+                                                {transactions.length === 0 ? (
+                                                    <div className="h-full flex flex-col items-center justify-center opacity-30 font-mono text-xs uppercase text-center p-4">
+                                                        <IconArchive size={32} className="mb-2 opacity-50"/>Keine Einträge vorhanden
+                                                    </div>
+                                                ) : (
+                                                    transactions.map((t) => (
+                                                        <TransactionItem 
+                                                            key={t.id} 
+                                                            t={t} 
+                                                            formatMoney={formatMoney} 
+                                                            handleDelete={handleDelete}
+                                                            handleEdit={startEditing}
+                                                            isSelected={selectedTransactionId === t.id}
+                                                            onSelect={handleSelectTransaction}
+                                                        />
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Form */}
+                                        <div className={`space-y-6 lg:sticky lg:top-6 order-1 lg:order-2 ${isMobileFormOpen ? 'block' : 'hidden lg:block'}`}>
+                                            <div className="deboss-container p-4 md:p-6 bg-[#e4e2dd] shadow-lg lg:shadow-none border border-black/5 lg:border-none relative">
+                                                <button onClick={() => {setIsMobileFormOpen(false); cancelEdit();}} className="absolute top-2 right-2 p-2 lg:hidden text-black/50">
+                                                    <IconX size={20} />
+                                                </button>
+                                                <h3 className="text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
+                                                    {editingId ? <IconEdit3 size={14} /> : <IconPlus size={14} />} 
+                                                    {editingId ? 'Eintrag Bearbeiten' : 'Neuer Eintrag'}
+                                                </h3>
+                                                <div className="space-y-5">
+                                                    <div className="flex bg-black/5 p-1 rounded-sm">
+                                                        <button onClick={() => setNewType('expense')} className={`flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'expense' ? 'bg-[#e8e6e1] shadow-sm text-rose-900' : 'opacity-40'}`}>Ausgabe</button>
+                                                        <button onClick={() => setNewType('income')} className={`flex-1 py-3 lg:py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${newType === 'income' ? 'bg-[#e8e6e1] shadow-sm text-emerald-900' : 'opacity-40'}`}>Einnahme</button>
+                                                    </div>
+                                                    
+                                                    {/* DATE INPUT */}
+                                                    <div>
+                                                        <label className="text-[10px] font-bold opacity-40 block mb-1 uppercase">Datum</label>
+                                                        <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full bg-transparent border-b border-black/10 focus:border-black outline-none font-mono py-2 text-sm uppercase transition-colors placeholder:opacity-30 rounded-none cursor-pointer" />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[10px] font-bold opacity-40 block mb-1 uppercase">Beschreibung</label>
+                                                        <input type="text" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Z.B. BÜROMATERIAL" className="w-full bg-transparent border-b border-black/10 focus:border-black outline-none font-mono py-2 text-sm uppercase transition-colors placeholder:opacity-30 rounded-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold opacity-40 block mb-1 uppercase">Betrag (CHF)</label>
+                                                        <input type="number" inputMode="decimal" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent border-b border-black/10 focus:border-black outline-none font-mono py-2 text-xl transition-colors placeholder:opacity-30 rounded-none" />
+                                                    </div>
+                                                    {newType === 'expense' && (
+                                                        <div>
+                                                            <label className="text-[10px] font-bold opacity-40 block mb-1 uppercase">Kategorie</label>
+                                                            <div className="relative">
+                                                                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className="w-full bg-transparent border-b border-black/10 focus:border-black outline-none font-mono py-2 text-sm uppercase transition-colors appearance-none rounded-none">
+                                                                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                </select>
+                                                                <IconChevronDown size={14} className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-40"/>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="pt-4 flex gap-2">
+                                                        {editingId && (
+                                                            <button onClick={cancelEdit} className="flex-1 bg-transparent border border-black/10 text-black/50 py-4 font-bold text-xs uppercase tracking-[0.2em] hover:bg-black/5 transition-colors">
+                                                                Abbrechen
+                                                            </button>
+                                                        )}
+                                                        <button onClick={handleSaveTransaction} className={`flex-1 bg-[#1a1a1a] text-[#e8e6e1] py-4 font-bold text-xs uppercase tracking-[0.2em] hover:bg-stone-800 transition-colors shadow-lg active:bg-black ${editingId ? 'w-2/3' : 'w-full'}`}>
+                                                            {editingId ? 'Aktualisieren' : 'Buchen'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ANALYTICS TAB */}
+                            {activeTab === 'analytics' && (
+                                <div className="space-y-8">
+                                    <div className="deboss-container p-6 md:p-8">
+                                        <h2 className="heading-stamp text-xl mb-8 border-b border-black/10 pb-4">Ausgaben Analyse</h2>
+                                        {expensesByCategory.length === 0 ? (
+                                            <div className="text-center py-12 opacity-40 font-mono">Keine Ausgabendaten verfügbar</div>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                {expensesByCategory.map(([cat, amount]) => {
+                                                    const percent = ((amount / totalExpense) * 100);
+                                                    return (
+                                                        <div key={cat} className="space-y-2">
+                                                            <div className="flex justify-between items-end text-xs uppercase font-bold tracking-wider">
+                                                                <span>{cat}</span>
+                                                                <span className="font-mono opacity-60">{Math.round(percent)}%</span>
+                                                            </div>
+                                                            <div className="h-8 bg-black/5 relative w-full rounded-sm overflow-hidden flex items-center px-2">
+                                                                <div className="absolute left-0 top-0 h-full bg-[#1a1a1a] opacity-80" style={{ width: `${percent}%` }}></div>
+                                                                <span className="relative z-10 font-mono text-xs mix-blend-difference text-white/80">{formatMoney(amount)}</span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="deboss-container p-6">
+                                            <h3 className="text-xs font-bold uppercase tracking-widest mb-4 opacity-60">Größte Ausgabe</h3>
+                                            <div className="text-2xl font-mono mb-1">
+                                                {transactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(Math.max(...transactions.filter(t => t.type === 'expense').map(t => Math.abs(t.amount)))) : '-'}
+                                            </div>
+                                        </div>
+                                        <div className="deboss-container p-6">
+                                            <h3 className="text-xs font-bold uppercase tracking-widest mb-4 opacity-60">Durchschnitt / Eintrag</h3>
+                                            <div className="text-2xl font-mono mb-1">
+                                                {transactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(totalExpense / transactions.filter(t => t.type === 'expense').length) : '-'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SETTINGS TAB */}
+                            {activeTab === 'settings' && (
+                                <div className="space-y-8 max-w-2xl mx-auto">
+                                    <div className="deboss-container p-6 md:p-8">
+                                        <h2 className="heading-stamp text-xl mb-8 border-b border-black/10 pb-4">Einstellungen</h2>
+                                        
+                                        <div className="space-y-8">
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest block mb-3">Monatliches Budget Ziel</label>
+                                                <div className="flex items-center gap-4">
+                                                    <input type="number" value={budgetLimit} onChange={(e) => setBudgetLimit(Number(e.target.value))} className="bg-transparent border-b-2 border-black/10 focus:border-black outline-none font-mono text-2xl py-2 w-full transition-colors rounded-none" />
+                                                    <span className="font-mono text-xl opacity-50">CHF</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-8 border-t border-black/5">
+                                                <label className="text-xs font-bold uppercase tracking-widest block mb-4">Kategorien Verwalten</label>
+                                                <div className="flex gap-2 mb-4">
+                                                    <input 
+                                                        type="text" 
+                                                        value={newCatName} 
+                                                        onChange={(e) => setNewCatName(e.target.value)}
+                                                        placeholder="NEUE KATEGORIE" 
+                                                        className="flex-1 bg-black/5 px-3 py-2 font-mono text-sm uppercase outline-none focus:bg-white transition-colors"
+                                                    />
+                                                    <button onClick={handleAddCategory} className="bg-[#1a1a1a] text-white px-4 py-2 font-bold text-xs uppercase"><IconPlus size={16}/></button>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {categories.map(cat => (
+                                                        <div key={cat} className="flex justify-between items-center bg-white/40 p-3 border border-black/5">
+                                                            <span className="font-mono text-xs uppercase">{cat}</span>
+                                                            <button onClick={() => handleDeleteCategory(cat)} className="opacity-40 hover:opacity-100 hover:text-rose-800 transition-all"><IconTrash2 size={14}/></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-8 border-t border-black/5">
+                                                <label className="text-xs font-bold uppercase tracking-widest block mb-3 text-rose-800">Gefahrenzone</label>
+                                                <button onClick={handleResetData} className="flex items-center gap-3 px-6 py-4 bg-rose-100/50 text-rose-900 font-bold text-xs uppercase tracking-widest hover:bg-rose-200/50 transition-colors w-full md:w-auto">
+                                                    <IconTrash2 size={16} /> Alle Daten löschen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+                    </main>
+
+                    {/* Mobile Bottom Navigation */}
+                    <nav className="lg:hidden fixed bottom-0 left-0 w-full bg-[#e8e6e1] border-t border-black/10 pb-safe pt-2 px-6 z-50 flex justify-between items-center h-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                        <button onClick={() => { setActiveTab('overview'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'overview' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
+                            <IconArchive size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Start</span>
+                        </button>
+                        <button onClick={() => { setActiveTab('analytics'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'analytics' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
+                            <IconPieChart size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Analyse</span>
+                        </button>
+                        <button onClick={() => { setActiveTab('settings'); setIsMobileFormOpen(false); }} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'settings' ? 'opacity-100 scale-105' : 'opacity-40'}`}>
+                            <IconSettings size={20} strokeWidth={2.5} /><span className="text-[9px] font-bold uppercase tracking-widest">Setup</span>
+                        </button>
+                    </nav>
+
+                    {/* Mobile FAB */}
+                    {!isMobileFormOpen && activeTab === 'overview' && (
+                        <button onClick={() => { 
+                            setIsMobileFormOpen(true); 
+                            setEditingId(null); // Ensure fresh start
+                            setNewDesc(""); setNewAmount(""); setNewDate(new Date().toISOString().split('T')[0]);
+                            window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                        }} className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#1a1a1a] text-[#e8e6e1] rounded-full shadow-2xl flex items-center justify-center z-40 btn-press">
+                            <IconPlus size={24} />
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
