@@ -75,6 +75,15 @@
             font-family: 'JetBrains Mono', monospace;
             text-transform: uppercase;
         }
+
+        /* Custom Select Styling */
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1em;
+        }
     </style>
 </head>
 <body>
@@ -157,7 +166,7 @@
                     </div>
                 </div>
                 
-                {/* Actions container - Visibility controlled by selection state */}
+                {/* Actions container */}
                 <div className={`
                     absolute right-0 top-1/2 -translate-y-1/2 
                     flex items-center gap-2 pr-2 bg-[#e8e6e1] shadow-sm z-20 transition-all duration-300
@@ -198,6 +207,11 @@
             }
         };
 
+        const MONTH_NAMES = [
+            "Januar", "Februar", "März", "April", "Mai", "Juni", 
+            "Juli", "August", "September", "Oktober", "November", "Dezember"
+        ];
+
         // --- MAIN APP ---
 
         const App = () => {
@@ -205,12 +219,18 @@
             const [isMobileFormOpen, setIsMobileFormOpen] = useState(false);
             const [selectedTransactionId, setSelectedTransactionId] = useState(null);
 
-            // STATE INITIALIZATION (Load from LS or Default)
+            // Filter State: 'week', 'month', 'year', 'all'
+            const [timeFilter, setTimeFilter] = useState('month'); 
+            
+            // New Date Selection State
+            const [filterMonth, setFilterMonth] = useState(new Date().getMonth());
+            const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+
+            // STATE INITIALIZATION
             const [transactions, setTransactions] = useState(() => loadFromLS('transactions', [
                 { id: 1, desc: "Cloud Infrastruktur", amount: -240.00, date: "2023-10-24", type: "expense", category: "Technik" },
                 { id: 2, desc: "Studio Equipment", amount: -1120.50, date: "2023-10-22", type: "expense", category: "Investition" },
                 { id: 3, desc: "Honorareingang", amount: 3500.00, date: "2023-10-21", type: "income", category: "Einkommen" },
-                { id: 4, desc: "Miete Workspace", amount: -850.00, date: "2023-10-18", type: "expense", category: "Fixkosten" },
             ]));
 
             const [categories, setCategories] = useState(() => loadFromLS('categories', [
@@ -226,14 +246,11 @@
             const [newCategory, setNewCategory] = useState("Sonstiges");
             const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
             
-            // Edit Mode State
             const [editingId, setEditingId] = useState(null);
-
             const [newCatName, setNewCatName] = useState("");
 
             // --- LOCAL STORAGE EFFECTS ---
             useEffect(() => {
-                // Sort transactions by date descending before saving
                 const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
                 localStorage.setItem('transactions', JSON.stringify(sorted));
             }, [transactions]);
@@ -246,24 +263,84 @@
                 localStorage.setItem('budgetLimit', JSON.stringify(budgetLimit));
             }, [budgetLimit]);
 
-            // Calculations
-            const totalBalance = transactions.reduce((acc, curr) => acc + curr.amount, 0);
-            const totalIncome = transactions.filter(t => t.amount > 0).reduce((acc, curr) => acc + curr.amount, 0);
-            const totalExpense = Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, curr) => acc + curr.amount, 0));
-            const budgetProgress = Math.min((totalExpense / budgetLimit) * 100, 100);
+            // --- COMPUTED: AVAILABLE YEARS ---
+            const availableYears = useMemo(() => {
+                const years = new Set([new Date().getFullYear()]);
+                transactions.forEach(t => years.add(new Date(t.date).getFullYear()));
+                return Array.from(years).sort((a, b) => b - a);
+            }, [transactions]);
 
+
+            // --- FILTER LOGIC ---
+            const filteredTransactions = useMemo(() => {
+                const now = new Date();
+                
+                // Helper for Week Calculation
+                const getWeek = (d) => {
+                    const date = new Date(d.getTime());
+                    date.setHours(0, 0, 0, 0);
+                    // Thursday in current week decides the year.
+                    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+                    // January 4 is always in week 1.
+                    const week1 = new Date(date.getFullYear(), 0, 4);
+                    // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+                    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+                };
+                const currentWeek = getWeek(now);
+
+                if (timeFilter === 'all') return transactions;
+
+                return transactions.filter(t => {
+                    const tDate = new Date(t.date);
+                    const tYear = tDate.getFullYear();
+                    const tMonth = tDate.getMonth();
+
+                    if (timeFilter === 'year') {
+                        // Use selected Year
+                        return tYear === parseInt(filterYear);
+                    }
+                    if (timeFilter === 'month') {
+                        // Use selected Month AND Year
+                        return tYear === parseInt(filterYear) && tMonth === parseInt(filterMonth);
+                    }
+                    if (timeFilter === 'week') {
+                        // Still default to current week for simplicity, or could add week selector later
+                        return tYear === now.getFullYear() && getWeek(tDate) === currentWeek;
+                    }
+                    return true;
+                });
+            }, [transactions, timeFilter, filterMonth, filterYear]);
+
+            // Calculations based on FILTERED Data
+            const totalIncomeFiltered = filteredTransactions.filter(t => t.amount > 0).reduce((acc, curr) => acc + curr.amount, 0);
+            const totalExpenseFiltered = Math.abs(filteredTransactions.filter(t => t.amount < 0).reduce((acc, curr) => acc + curr.amount, 0));
+            
+            // Global Balance (Always All-Time)
+            const totalBalanceGlobal = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+            
+            // Budget based on Filtered Expense
+            const budgetProgress = Math.min((totalExpenseFiltered / budgetLimit) * 100, 100);
+
+            // Analytics based on FILTERED Data
             const expensesByCategory = useMemo(() => {
                 const categoriesMap = {};
-                transactions.filter(t => t.type === 'expense').forEach(t => {
+                filteredTransactions.filter(t => t.type === 'expense').forEach(t => {
                     const cat = t.category || 'Sonstiges';
                     categoriesMap[cat] = (categoriesMap[cat] || 0) + Math.abs(t.amount);
                 });
                 return Object.entries(categoriesMap).sort((a, b) => b[1] - a[1]);
-            }, [transactions]);
+            }, [filteredTransactions]);
 
             const formatMoney = (amount) => {
                 return new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' }).format(amount);
             };
+
+            const getTitleSuffix = () => {
+                if(timeFilter === 'week') return 'Woche';
+                if(timeFilter === 'year') return `${filterYear}`;
+                if(timeFilter === 'month') return `${MONTH_NAMES[filterMonth]} ${filterYear}`;
+                return 'Gesamt';
+            }
 
             const handleSaveTransaction = () => {
                 if (!newDesc || !newAmount || !newDate) return;
@@ -271,26 +348,16 @@
                 const amountVal = parseFloat(newAmount);
                 const finalAmount = newType === 'expense' ? -Math.abs(amountVal) : Math.abs(amountVal);
                 
-                // If Editing
                 if (editingId) {
                     const updatedTransactions = transactions.map(t => {
                         if (t.id === editingId) {
-                            return {
-                                ...t,
-                                desc: newDesc,
-                                amount: finalAmount,
-                                date: newDate,
-                                type: newType,
-                                category: newType === 'income' ? 'Einkommen' : newCategory
-                            };
+                            return { ...t, desc: newDesc, amount: finalAmount, date: newDate, type: newType, category: newType === 'income' ? 'Einkommen' : newCategory };
                         }
                         return t;
                     });
                     setTransactions(updatedTransactions);
                     setEditingId(null);
-                } 
-                // If New
-                else {
+                } else {
                     const newTransaction = {
                         id: Date.now(),
                         desc: newDesc,
@@ -302,35 +369,24 @@
                     setTransactions([newTransaction, ...transactions]);
                 }
 
-                // Reset Form
-                setNewDesc("");
-                setNewAmount("");
-                setNewDate(new Date().toISOString().split('T')[0]);
-                setIsMobileFormOpen(false);
-                setSelectedTransactionId(null);
+                setNewDesc(""); setNewAmount(""); setNewDate(new Date().toISOString().split('T')[0]);
+                setIsMobileFormOpen(false); setSelectedTransactionId(null);
             };
 
             const startEditing = (t) => {
                 setEditingId(t.id);
                 setNewDesc(t.desc);
-                setNewAmount(Math.abs(t.amount).toString()); // Show positive in input
+                setNewAmount(Math.abs(t.amount).toString());
                 setNewType(t.type);
                 setNewCategory(t.category);
                 setNewDate(t.date);
-                
-                // Switch to overview if on mobile and not already there, and open form
                 setActiveTab('overview');
                 setIsMobileFormOpen(true);
-                
-                // Scroll to top to see form
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const cancelEdit = () => {
-                setEditingId(null);
-                setNewDesc("");
-                setNewAmount("");
-                setNewDate(new Date().toISOString().split('T')[0]);
+                setEditingId(null); setNewDesc(""); setNewAmount(""); setNewDate(new Date().toISOString().split('T')[0]);
                 setIsMobileFormOpen(false);
             };
 
@@ -341,23 +397,16 @@
             };
 
             const handleSelectTransaction = (id) => {
-                if (selectedTransactionId === id) {
-                    setSelectedTransactionId(null);
-                } else {
-                    setSelectedTransactionId(id);
-                }
+                setSelectedTransactionId(selectedTransactionId === id ? null : id);
             };
 
             const handleResetData = () => {
-                if(window.confirm("Wirklich alle Daten löschen?")) {
-                    setTransactions([]);
-                }
+                if(window.confirm("Wirklich alle Daten löschen?")) { setTransactions([]); }
             };
 
             const handleAddCategory = () => {
                 if(newCatName && !categories.includes(newCatName)) {
-                    setCategories([...categories, newCatName]);
-                    setNewCatName("");
+                    setCategories([...categories, newCatName]); setNewCatName("");
                 }
             };
 
@@ -437,6 +486,54 @@
                             {activeTab === 'overview' && (
                                 <div className="space-y-6 md:space-y-8">
                                     
+                                    {/* TIME FILTER TOGGLE & SELECTORS */}
+                                    <div className="space-y-2">
+                                        <div className="deboss-container p-1 flex justify-between gap-1">
+                                            {['week', 'month', 'year', 'all'].map(filter => (
+                                                <button 
+                                                    key={filter}
+                                                    onClick={() => setTimeFilter(filter)}
+                                                    className={`
+                                                        flex-1 py-2 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all rounded-sm
+                                                        ${timeFilter === filter ? 'bg-[#1a1a1a] text-[#e8e6e1] shadow-sm' : 'hover:bg-black/5 opacity-50 hover:opacity-100'}
+                                                    `}
+                                                >
+                                                    {filter === 'week' ? 'Woche' : filter === 'month' ? 'Monat' : filter === 'year' ? 'Jahr' : 'Alle'}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Dynamic Selectors for Month/Year */}
+                                        {(timeFilter === 'month' || timeFilter === 'year') && (
+                                            <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
+                                                {timeFilter === 'month' && (
+                                                    <div className="relative flex-1">
+                                                        <select 
+                                                            value={filterMonth} 
+                                                            onChange={(e) => setFilterMonth(e.target.value)}
+                                                            className="w-full bg-[#e4e2dd] border-b border-black/10 text-xs font-bold uppercase py-2 px-3 outline-none cursor-pointer hover:bg-black/5 transition-colors"
+                                                        >
+                                                            {MONTH_NAMES.map((m, i) => (
+                                                                <option key={i} value={i}>{m}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+                                                <div className="relative flex-1">
+                                                    <select 
+                                                        value={filterYear} 
+                                                        onChange={(e) => setFilterYear(e.target.value)}
+                                                        className="w-full bg-[#e4e2dd] border-b border-black/10 text-xs font-bold uppercase py-2 px-3 outline-none cursor-pointer hover:bg-black/5 transition-colors"
+                                                    >
+                                                        {availableYears.map(y => (
+                                                            <option key={y} value={y}>{y}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Stats */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                                         <div className="deboss-container p-6 md:p-8 flex flex-col justify-between min-h-[160px] md:min-h-[200px]">
@@ -444,22 +541,23 @@
                                                 <IconWallet size={14} /> Aktueller Kontostand
                                             </span>
                                             <div>
-                                                <span className={`text-4xl md:text-6xl font-mono font-medium tracking-tighter ${totalBalance < 0 ? 'text-rose-800' : ''}`}>
-                                                    {formatMoney(totalBalance)}
+                                                <span className={`text-4xl md:text-6xl font-mono font-medium tracking-tighter ${totalBalanceGlobal < 0 ? 'text-rose-800' : ''}`}>
+                                                    {formatMoney(totalBalanceGlobal)}
                                                 </span>
                                             </div>
+                                            <span className="text-[9px] uppercase opacity-40 mt-2">Gesamtsaldo (Ungefiltert)</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                            <StatsCard title="Einnahmen" amount={`+${formatMoney(totalIncome)}`} icon={IconTrendingUp} colorClass="text-emerald-800" />
-                                            <StatsCard title="Ausgaben" amount={`-${formatMoney(totalExpense)}`} icon={IconTrendingDown} colorClass="text-rose-800" />
+                                            <StatsCard title="Einnahmen" amount={`+${formatMoney(totalIncomeFiltered)}`} icon={IconTrendingUp} colorClass="text-emerald-800" />
+                                            <StatsCard title="Ausgaben" amount={`-${formatMoney(totalExpenseFiltered)}`} icon={IconTrendingDown} colorClass="text-rose-800" />
                                             
                                             <div className="col-span-2 deboss-container p-4 md:p-6 flex flex-col justify-center relative overflow-hidden">
                                                 <div className="flex justify-between items-end mb-2 z-10 relative">
-                                                    <span className="text-[9px] md:text-[10px] font-bold uppercase opacity-50">Budget ({formatMoney(budgetLimit)})</span>
+                                                    <span className="text-[9px] md:text-[10px] font-bold uppercase opacity-50">Budget ({timeFilter === 'all' ? '∞' : formatMoney(budgetLimit)})</span>
                                                     <span className="font-mono text-xs opacity-70">{Math.round(budgetProgress)}%</span>
                                                 </div>
                                                 <div className="absolute left-0 bottom-0 h-1 bg-black/5 w-full">
-                                                    <div className={`h-full transition-all duration-1000 ${budgetProgress > 90 ? 'bg-rose-800' : 'bg-[#1a1a1a]'}`} style={{ width: `${budgetProgress}%` }}></div>
+                                                    <div className={`h-full transition-all duration-1000 ${budgetProgress > 100 ? 'bg-rose-800' : 'bg-[#1a1a1a]'}`} style={{ width: `${budgetProgress > 100 ? 100 : budgetProgress}%` }}></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -469,16 +567,18 @@
                                         {/* List */}
                                         <div className="lg:col-span-2 deboss-container h-[400px] md:h-[550px] flex flex-col relative order-2 lg:order-1">
                                             <div className="p-4 md:p-6 border-b border-black/5 flex justify-between items-center bg-[#e8e6e1]/50 backdrop-blur-sm z-10 sticky top-0">
-                                                <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest">Buchungsjournal</h3>
+                                                <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                                                    Journal ({getTitleSuffix()})
+                                                </h3>
                                                 <span className="font-mono text-[9px] md:text-[10px] opacity-40 hidden md:inline">SORT: DATUM</span>
                                             </div>
                                             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 custom-scroll">
-                                                {transactions.length === 0 ? (
+                                                {filteredTransactions.length === 0 ? (
                                                     <div className="h-full flex flex-col items-center justify-center opacity-30 font-mono text-xs uppercase text-center p-4">
-                                                        <IconArchive size={32} className="mb-2 opacity-50"/>Keine Einträge vorhanden
+                                                        <IconArchive size={32} className="mb-2 opacity-50"/>Keine Einträge
                                                     </div>
                                                 ) : (
-                                                    transactions.map((t) => (
+                                                    filteredTransactions.map((t) => (
                                                         <TransactionItem 
                                                             key={t.id} 
                                                             t={t} 
@@ -555,13 +655,15 @@
                             {activeTab === 'analytics' && (
                                 <div className="space-y-8">
                                     <div className="deboss-container p-6 md:p-8">
-                                        <h2 className="heading-stamp text-xl mb-8 border-b border-black/10 pb-4">Ausgaben Analyse</h2>
+                                        <h2 className="heading-stamp text-xl mb-8 border-b border-black/10 pb-4">
+                                            Ausgaben Analyse ({getTitleSuffix()})
+                                        </h2>
                                         {expensesByCategory.length === 0 ? (
                                             <div className="text-center py-12 opacity-40 font-mono">Keine Ausgabendaten verfügbar</div>
                                         ) : (
                                             <div className="space-y-6">
                                                 {expensesByCategory.map(([cat, amount]) => {
-                                                    const percent = ((amount / totalExpense) * 100);
+                                                    const percent = ((amount / totalExpenseFiltered) * 100);
                                                     return (
                                                         <div key={cat} className="space-y-2">
                                                             <div className="flex justify-between items-end text-xs uppercase font-bold tracking-wider">
@@ -582,13 +684,13 @@
                                         <div className="deboss-container p-6">
                                             <h3 className="text-xs font-bold uppercase tracking-widest mb-4 opacity-60">Größte Ausgabe</h3>
                                             <div className="text-2xl font-mono mb-1">
-                                                {transactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(Math.max(...transactions.filter(t => t.type === 'expense').map(t => Math.abs(t.amount)))) : '-'}
+                                                {filteredTransactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(Math.max(...filteredTransactions.filter(t => t.type === 'expense').map(t => Math.abs(t.amount)))) : '-'}
                                             </div>
                                         </div>
                                         <div className="deboss-container p-6">
                                             <h3 className="text-xs font-bold uppercase tracking-widest mb-4 opacity-60">Durchschnitt / Eintrag</h3>
                                             <div className="text-2xl font-mono mb-1">
-                                                {transactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(totalExpense / transactions.filter(t => t.type === 'expense').length) : '-'}
+                                                {filteredTransactions.filter(t => t.type === 'expense').length > 0 ? formatMoney(totalExpenseFiltered / filteredTransactions.filter(t => t.type === 'expense').length) : '-'}
                                             </div>
                                         </div>
                                     </div>
@@ -663,7 +765,7 @@
                     {!isMobileFormOpen && activeTab === 'overview' && (
                         <button onClick={() => { 
                             setIsMobileFormOpen(true); 
-                            setEditingId(null); // Ensure fresh start
+                            setEditingId(null); 
                             setNewDesc(""); setNewAmount(""); setNewDate(new Date().toISOString().split('T')[0]);
                             window.scrollTo({ top: 0, behavior: 'smooth' }); 
                         }} className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#1a1a1a] text-[#e8e6e1] rounded-full shadow-2xl flex items-center justify-center z-40 btn-press">
