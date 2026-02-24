@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spark Vocab - Custom Verbs Pro</title>
+    <title>Spark Vocab - Multi-Language Pro</title>
+    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .perspective-1000 { perspective: 1000px; }
@@ -25,10 +27,10 @@
 <body class="bg-slate-50 text-slate-900 font-sans">
     <div id="root"></div>
 
-    <script type="text/babel">
-        // Marker für Dateninjektion beim HTML-Export
-        window.__SPARK_DATA__ = null;
+    <!-- Dedizierter Block für exportierte Daten -->
+    <script id="spark-library-data" type="application/json">null</script>
 
+    <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
         const Icons = {
@@ -56,37 +58,45 @@
         ];
 
         const App = () => {
+            // --- DATA STATE ---
             const [languages, setLanguages] = useState([]);
             const [categories, setCategories] = useState([]);
             const [cards, setCards] = useState([]);
             const [history, setHistory] = useState([]);
 
-            const [view, setView] = useState('LANGUAGES'); 
+            // --- NAVIGATION STATE ---
+            const [view, setView] = useState('LANGUAGES');
             const [selectedLangId, setSelectedLangId] = useState(null);
             const [selectedCatId, setSelectedCatId] = useState(null);
 
-            const [studySession, setStudySession] = useState(null);
-            const [revealedForms, setRevealedForms] = useState({});
+            // --- UI STATE ---
             const [showSettings, setShowSettings] = useState(false);
             const [showNewModal, setShowNewModal] = useState({ type: null, id: null });
             const [showRandomChoice, setShowRandomChoice] = useState(false);
             const [showStats, setShowStats] = useState(false);
             const [analysisCard, setAnalysisCard] = useState(null);
+            const [studySession, setStudySession] = useState(null);
+            const [revealedForms, setRevealedForms] = useState({});
 
             const [modalInput, setModalInput] = useState('');
             const [cardInput, setCardInput] = useState({ id: null, front: '', back: '', type: 'standard', verbList: [...INITIAL_VERB_FORMS] });
 
             const fileInputRef = useRef(null);
 
+            // --- LOAD & SAVE ---
             useEffect(() => {
-                const storageKey = 'spark_custom_verbs_v23';
+                const storageKey = 'spark_multilang_v23';
                 let data = { languages: [], categories: [], cards: [], history: [] };
-                if (window.__SPARK_DATA__) {
-                    data = window.__SPARK_DATA__;
+
+                // Erst prüfen ob Daten im HTML-Block injiziert wurden
+                const injected = document.getElementById('spark-library-data');
+                if (injected && injected.textContent !== 'null') {
+                    try { data = JSON.parse(injected.textContent); } catch(e){}
                 } else {
                     const saved = localStorage.getItem(storageKey);
                     if (saved) { try { data = JSON.parse(saved); } catch(e){} }
                 }
+                
                 setLanguages(data.languages || []);
                 setCategories(data.categories || []);
                 setCards((data.cards || []).map(c => ({ ...c, totalAttempts: c.totalAttempts || 0 })));
@@ -94,14 +104,66 @@
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('spark_custom_verbs_v23', JSON.stringify({ languages, categories, cards, history }));
+                localStorage.setItem('spark_multilang_v23', JSON.stringify({ languages, categories, cards, history }));
             }, [languages, categories, cards, history]);
 
-            const activeLang = useMemo(() => languages.find(l => l.id === selectedLangId), [languages, selectedLangId]);
-            const activeCategories = useMemo(() => categories.filter(c => c.languageId === selectedLangId), [categories, selectedLangId]);
-            const activeCategory = useMemo(() => categories.find(c => c.id === selectedCatId), [categories, selectedCatId]);
-            const folderCards = useMemo(() => cards.filter(c => c.categoryId === selectedCatId), [cards, selectedCatId]);
+            // --- DERIVED ---
+            const activeLang = languages.find(l => l.id === selectedLangId);
+            const langCategories = categories.filter(c => c.languageId === selectedLangId);
+            const activeCategory = categories.find(c => c.id === selectedCatId);
+            const folderCards = cards.filter(c => c.categoryId === selectedCatId);
 
+            // --- IMPORT / EXPORT ---
+            const handleExport = () => {
+                const dataObj = { languages, categories, cards, history };
+                const dataString = JSON.stringify(dataObj);
+                
+                // Wir bauen ein komplett frisches HTML basierend auf dem aktuellen DOM
+                // Aber wir ersetzen den Inhalt des JSON-Script tags.
+                const docClone = document.documentElement.cloneNode(true);
+                const dataTag = docClone.querySelector('#spark-library-data');
+                if (dataTag) dataTag.textContent = dataString;
+                
+                const htmlContent = "<!DOCTYPE html>\n" + docClone.outerHTML;
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `SparkVocab_Library_${new Date().toISOString().slice(0,10)}.html`;
+                a.click();
+            };
+
+            const handleImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const content = ev.target.result;
+                    // Wir nutzen DOMParser um das hochgeladene HTML sauber zu parsen
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(content, 'text/html');
+                    const dataTag = doc.querySelector('#spark-library-data');
+                    
+                    if (dataTag && dataTag.textContent !== 'null') {
+                        try {
+                            const data = JSON.parse(dataTag.textContent);
+                            if (confirm("Daten aus Datei laden? Aktuelle Daten werden überschrieben.")) {
+                                setLanguages(data.languages || []);
+                                setCategories(data.categories || []);
+                                setCards(data.cards || []);
+                                setHistory(data.history || []);
+                                setShowSettings(false);
+                                setView('LANGUAGES');
+                            }
+                        } catch(err) { alert("Daten konnten nicht gelesen werden."); }
+                    } else {
+                        alert("Keine gültigen Spark-Daten in dieser Datei gefunden.");
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // --- SRS LOGIK ---
             const calcSRS = (card, rating) => {
                 let { interval, ease, repetitions } = card.srs;
                 if (rating === 0) { repetitions = 0; interval = 1; ease = Math.max(1.3, ease - 0.2); }
@@ -111,35 +173,6 @@
                     repetitions += 1; ease += 0.1;
                 }
                 return { interval, ease, repetitions, nextReview: Date.now() + (interval * 24 * 60 * 60 * 1000) };
-            };
-
-            const saveLanguage = () => {
-                if (!modalInput.trim()) return;
-                if (showNewModal.id) setLanguages(prev => prev.map(l => l.id === showNewModal.id ? { ...l, name: modalInput.trim() } : l));
-                else setLanguages(prev => [...prev, { id: Date.now(), name: modalInput.trim() }]);
-                setModalInput(''); setShowNewModal({ type: null, id: null });
-            };
-
-            const saveCategory = () => {
-                if (!modalInput.trim() || !selectedLangId) return;
-                if (showNewModal.id) setCategories(prev => prev.map(c => c.id === showNewModal.id ? { ...c, name: modalInput.trim() } : c));
-                else setCategories(prev => [...prev, { id: Date.now(), name: modalInput.trim(), languageId: selectedLangId }]);
-                setModalInput(''); setShowNewModal({ type: null, id: null });
-            };
-
-            const saveCard = (e) => {
-                e.preventDefault();
-                if (!cardInput.front || !cardInput.back || !selectedCatId) return;
-                if (cardInput.id) {
-                    setCards(prev => prev.map(c => c.id === cardInput.id ? { ...c, front: cardInput.front, back: cardInput.back, type: cardInput.type, verbList: cardInput.type === 'verb' ? cardInput.verbList : null } : c));
-                } else {
-                    const newCard = { 
-                        id: Date.now(), languageId: selectedLangId, categoryId: selectedCatId, type: cardInput.type, front: cardInput.front, back: cardInput.back, 
-                        verbList: cardInput.type === 'verb' ? cardInput.verbList : null, srs: { interval: 0, ease: 2.5, repetitions: 0, nextReview: Date.now() }, totalAttempts: 0 
-                    };
-                    setCards(prev => [newCard, ...prev]);
-                }
-                setCardInput({ id: null, front: '', back: '', type: 'standard', verbList: [...INITIAL_VERB_FORMS] });
             };
 
             const handleRate = (rating) => {
@@ -165,6 +198,35 @@
                 }, 400);
             };
 
+            // --- ACTIONS ---
+            const saveLanguage = () => {
+                if (!modalInput.trim()) return;
+                if (showNewModal.id) setLanguages(prev => prev.map(l => l.id === showNewModal.id ? { ...l, name: modalInput.trim() } : l));
+                else setLanguages(prev => [...prev, { id: Date.now(), name: modalInput.trim() }]);
+                setModalInput(''); setShowNewModal({ type: null, id: null });
+            };
+
+            const saveCategory = () => {
+                if (!modalInput.trim() || !selectedLangId) return;
+                if (showNewModal.id) setCategories(prev => prev.map(c => c.id === showNewModal.id ? { ...c, name: modalInput.trim() } : c));
+                else setCategories(prev => [...prev, { id: Date.now(), name: modalInput.trim(), languageId: selectedLangId }]);
+                setModalInput(''); setShowNewModal({ type: null, id: null });
+            };
+
+            const saveCard = (e) => {
+                e.preventDefault();
+                if (!cardInput.front || !cardInput.back || !selectedCatId) return;
+                if (cardInput.id) {
+                    setCards(prev => prev.map(c => c.id === cardInput.id ? { ...c, front: cardInput.front, back: cardInput.back, type: cardInput.type, verbList: cardInput.type === 'verb' ? cardInput.verbList : null } : c));
+                } else {
+                    setCards(prev => [{ 
+                        id: Date.now(), languageId: selectedLangId, categoryId: selectedCatId, type: cardInput.type, front: cardInput.front, back: cardInput.back, 
+                        verbList: cardInput.type === 'verb' ? cardInput.verbList : null, srs: { interval: 0, ease: 2.5, repetitions: 0, nextReview: Date.now() }, totalAttempts: 0 
+                    }, ...prev]);
+                }
+                setCardInput({ id: null, front: '', back: '', type: 'standard', verbList: [...INITIAL_VERB_FORMS] });
+            };
+
             const statsData = useMemo(() => {
                 const langH = history.filter(h => h.languageId === selectedLangId);
                 const total = langH.length, goods = langH.filter(h => h.rating === 2).length;
@@ -179,34 +241,10 @@
                 return { successRate: total > 0 ? Math.round((goods / total) * 100) : 0, heatmap, streak };
             }, [history, selectedLangId]);
 
-            const updateVerbForm = (index, field, value) => {
-                const newList = [...cardInput.verbList];
-                newList[index][field] = value;
-                setCardInput({ ...cardInput, verbList: newList });
-            };
-
             return (
                 <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col shadow-2xl relative overflow-hidden">
-                    <input type="file" ref={fileInputRef} onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                            const content = ev.target.result;
-                            const marker = 'window.__SPARK_DATA__ = ';
-                            const start = content.indexOf(marker);
-                            if (start !== -1) {
-                                try {
-                                    const jsonStr = content.substring(start + marker.length).split(';')[0];
-                                    const data = JSON.parse(jsonStr);
-                                    setLanguages(data.languages || []); setCategories(data.categories || []); setCards(data.cards || []); setHistory(data.history || []);
-                                } catch(err) { alert("Formatfehler."); }
-                            }
-                        };
-                        reader.readAsText(file);
-                    }} accept=".html" className="hidden" />
+                    <input type="file" ref={fileInputRef} onChange={handleImport} accept=".html" className="hidden" />
 
-                    {/* HEADER */}
                     <header className="p-4 border-b bg-white flex items-center justify-between sticky top-0 z-30 shadow-sm">
                         <div className="flex items-center gap-3">
                             {view !== 'LANGUAGES' && (
@@ -225,11 +263,9 @@
                     </header>
 
                     <main className="flex-1 p-5 overflow-y-auto">
-                        
-                        {/* VIEW: LANGUAGES */}
                         {view === 'LANGUAGES' && (
                             <div className="space-y-4 animate-in fade-in">
-                                <button onClick={() => { setModalInput(''); setShowNewModal({type: 'lang', id: null}); }} className="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"><Icons.Plus /> Sprache hinzufügen</button>
+                                <button onClick={() => { setModalInput(''); setShowNewModal({type: 'lang', id: null}); }} className="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 shadow-lg"><Icons.Plus /> Sprache hinzufügen</button>
                                 <div className="grid gap-3">
                                     {languages.map(lang => (
                                         <div key={lang.id} className="group relative bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-indigo-200 active:bg-slate-50 transition-all overflow-hidden">
@@ -250,7 +286,6 @@
                             </div>
                         )}
 
-                        {/* STATS VIEW */}
                         {showStats && (
                             <div className="space-y-6 animate-in fade-in mb-8">
                                 <div className="grid grid-cols-2 gap-3">
@@ -267,7 +302,6 @@
                             </div>
                         )}
 
-                        {/* VIEW: HOME (Language Specific) */}
                         {view === 'HOME' && !showStats && (
                             <div className="space-y-4 animate-in fade-in">
                                 <div className="grid grid-cols-2 gap-3">
@@ -280,7 +314,7 @@
                                 </div>
                                 <div className="flex justify-between items-center px-1 pt-4 border-t mt-2"><h2 className="text-xs font-black uppercase text-slate-400 tracking-widest leading-none">Ordner</h2><button onClick={() => { setModalInput(''); setShowNewModal({type: 'cat', id: null}); }} className="text-indigo-600 font-bold flex items-center gap-1 text-xs"><Icons.Plus /> Neu</button></div>
                                 <div className="grid gap-3">
-                                    {activeCategories.map(cat => {
+                                    {langCategories.map(cat => {
                                         const due = cards.filter(c => c.categoryId === cat.id && c.srs.nextReview <= Date.now()).length;
                                         return (
                                             <div key={cat.id} className="group relative bg-white border border-slate-200 rounded-2xl shadow-sm transition-all active:bg-slate-100 overflow-hidden">
@@ -296,7 +330,6 @@
                             </div>
                         )}
 
-                        {/* VIEW: DETAIL (Folder Specific) */}
                         {view === 'DETAIL' && activeCategory && (
                             <div className="space-y-6 pb-20 animate-in slide-in-from-right-4">
                                 <div className="grid grid-cols-2 gap-3">
@@ -311,57 +344,50 @@
                                         setStudySession({ queue: std.map(c => { const f=Math.random()>0.5; return {...c, displayFront: f?c.back:c.front, displayBack: f?c.front:c.back}}).sort(()=>Math.random()-0.5), index: 0, flipped: false, title: `Zufall`, isRandom: true, isChanging: false });
                                     }} className="bg-slate-800 text-white py-4 rounded-3xl font-black text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95"><Icons.Shuffle /> Zufall</button>
                                 </div>
-                                
                                 <form onSubmit={saveCard} className="bg-white border-2 border-indigo-100 p-5 rounded-3xl space-y-4 shadow-sm">
-                                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                                        <button type="button" onClick={() => setCardInput({...cardInput, type: 'standard'})} className={`flex-1 py-2 text-[10px] font-black rounded-lg ${cardInput.type === 'standard' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>VOKABEL</button>
-                                        <button type="button" onClick={() => setCardInput({...cardInput, type: 'verb'})} className={`flex-1 py-2 text-[10px] font-black rounded-lg ${cardInput.type === 'verb' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>VERB</button>
-                                    </div>
+                                    <div className="flex bg-slate-100 p-1 rounded-xl"><button type="button" onClick={() => setCardInput({...cardInput, type: 'standard'})} className={`flex-1 py-2 text-[10px] font-black rounded-lg ${cardInput.type === 'standard' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>VOKABEL</button><button type="button" onClick={() => setCardInput({...cardInput, type: 'verb'})} className={`flex-1 py-2 text-[10px] font-black rounded-lg ${cardInput.type === 'verb' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>VERB</button></div>
                                     <input className="w-full p-4 rounded-2xl bg-slate-50 outline-none border focus:border-indigo-500 font-bold" placeholder={cardInput.type === 'verb' ? "Infinitiv" : "Frage"} value={cardInput.front} onChange={e => setCardInput({...cardInput, front: e.target.value})} />
                                     <input className="w-full p-4 rounded-2xl bg-slate-50 outline-none border focus:border-indigo-500 font-bold" placeholder="Antwort" value={cardInput.back} onChange={e => setCardInput({...cardInput, back: e.target.value})} />
-                                    
                                     {cardInput.type === 'verb' && (
-                                        <div className="space-y-2 animate-in fade-in mt-4">
-                                            <div className="grid grid-cols-2 gap-2 text-[8px] font-black uppercase text-slate-400 px-1">
-                                                <span>Person / Pronomen</span>
-                                                <span>Konjugierte Form</span>
-                                            </div>
+                                        <div className="space-y-2 mt-4 animate-in fade-in">
                                             {cardInput.verbList.map((item, idx) => (
                                                 <div key={idx} className="flex gap-2">
-                                                    <input className="w-1/3 p-2 text-xs rounded-xl bg-slate-50 border outline-none focus:border-indigo-300" placeholder="z.B. ich" value={item.label} onChange={e => updateVerbForm(idx, 'label', e.target.value)} />
-                                                    <input className="flex-1 p-2 text-xs rounded-xl bg-slate-50 border outline-none focus:border-indigo-500 font-bold" placeholder="Form" value={item.value} onChange={e => updateVerbForm(idx, 'value', e.target.value)} />
+                                                    <input className="w-1/3 p-2 text-xs rounded-xl bg-slate-50 border outline-none" placeholder="Label" value={item.label} onChange={e => {
+                                                        const n = [...cardInput.verbList]; n[idx].label = e.target.value; setCardInput({...cardInput, verbList: n});
+                                                    }} />
+                                                    <input className="flex-1 p-2 text-xs rounded-xl bg-slate-50 border outline-none font-bold" placeholder="Form" value={item.value} onChange={e => {
+                                                        const n = [...cardInput.verbList]; n[idx].value = e.target.value; setCardInput({...cardInput, verbList: n});
+                                                    }} />
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                     <div className="flex gap-2"><button type="submit" className="flex-[3] bg-slate-800 text-white py-4 rounded-2xl font-bold">{cardInput.id ? 'Update' : 'Hinzufügen'}</button>{cardInput.id && <button type="button" onClick={() => setCardInput({ id: null, front: '', back: '', type: 'standard', verbList: [...INITIAL_VERB_FORMS] })} className="flex-1 bg-slate-200 text-slate-500 py-4 rounded-2xl font-bold">X</button>}</div>
                                 </form>
-
                                 <div className="space-y-2">
                                     {folderCards.map(card => (
                                         <div key={card.id} className="p-4 bg-white border rounded-2xl flex justify-between items-center group shadow-sm hover:border-indigo-200">
                                             <div className="truncate pr-4 leading-tight"><div className="font-bold text-slate-800 truncate">{card.front} {card.type==='verb' && <span className="text-[7px] bg-emerald-100 text-emerald-600 px-1 rounded font-black uppercase ml-1 tracking-widest">Verb</span>}</div><div className="text-xs text-slate-400 truncate mt-1">{card.back}</div><div className="flex gap-2 mt-2"><span className="text-[8px] font-black uppercase text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">Box {card.srs.repetitions}</span><span className="text-[8px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">Versuche: {card.totalAttempts}</span></div></div>
-                                            <div className="flex items-center gap-1 opacity-20 group-hover:opacity-100 transition-opacity"><button onClick={() => setAnalysisCard(card)} className="text-slate-400 p-2"><Icons.Info /></button><button onClick={() => { setCardInput({ ...card, verbList: card.verbList || [...INITIAL_VERB_FORMS] }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-indigo-500 p-2"><Icons.Edit /></button><button onClick={() => setCards(p => p.filter(c => c.id !== card.id))} className="text-rose-500 p-2"><Icons.Trash /></button></div>
+                                            <div className="flex items-center gap-1 opacity-20 group-hover:opacity-100 transition-opacity shrink-0"><button onClick={() => setAnalysisCard(card)} className="text-slate-400 p-2"><Icons.Info /></button><button onClick={() => { setCardInput({ ...card, verbList: card.verbList || [...INITIAL_VERB_FORMS] }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-indigo-500 p-2"><Icons.Edit /></button><button onClick={() => setCards(p => p.filter(c => c.id !== card.id))} className="text-rose-500 p-2"><Icons.Trash /></button></div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {/* STUDY UI */}
                         {studySession && (
                             <div className="fixed inset-0 bg-slate-50 z-[100] flex flex-col p-6 animate-in fade-in no-select">
                                 <div className="flex justify-between items-center mb-6"><button onClick={() => setStudySession(null)} className="text-slate-400 font-bold text-sm">Beenden</button><div className="text-center font-bold text-xs"><div className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none">{studySession.title}</div>{studySession.index + 1} / {studySession.queue.length}</div><div className="w-10"></div></div>
                                 <div className="flex-1 flex items-center justify-center perspective-1000">
                                     <div className={`relative w-full aspect-[4/5] max-h-[520px] card-inner preserve-3d cursor-pointer ${studySession.flipped ? 'rotate-y-180' : ''}`} onClick={() => !studySession.isChanging && setStudySession({...studySession, flipped: !studySession.flipped})}>
-                                        <div className="absolute inset-0 backface-hidden bg-white rounded-[2.5rem] shadow-2xl border flex flex-col items-center justify-center p-10 text-center"><div className="text-3xl font-black text-slate-800 leading-tight">{studySession.isRandom ? (studySession.queue[studySession.index].displayFront || studySession.queue[studySession.index].front) : studySession.queue[studySession.index].front}</div><div className="absolute bottom-10 text-indigo-300 uppercase tracking-widest text-[9px] font-black animate-pulse">Tippen zum Umdrehen</div></div>
+                                        <div className="absolute inset-0 backface-hidden bg-white rounded-[2.5rem] shadow-2xl border flex flex-col items-center justify-center p-10 text-center"><div className="text-3xl font-black text-slate-800 leading-tight">{studySession.isRandom ? studySession.queue[studySession.index].displayFront : studySession.queue[studySession.index].front}</div><div className="absolute bottom-10 text-indigo-300 uppercase tracking-widest text-[9px] font-black animate-pulse">Umdrehen</div></div>
                                         <div className="absolute inset-0 backface-hidden rotate-y-180 bg-indigo-600 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden">
                                             {studySession.flipped && (
-                                                <div className="w-full h-full flex flex-col justify-center relative">
+                                                <div className="w-full relative h-full flex flex-col justify-center">
                                                     {studySession.queue[studySession.index].type !== 'verb' && (<div className="absolute top-0 right-0 bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">{studySession.queue[studySession.index].totalAttempts + 1}. Versuch</div>)}
                                                     {studySession.queue[studySession.index].type === 'verb' ? (
                                                         <div className="space-y-4 w-full">
-                                                            <div className="mb-2"><div className="text-2xl font-black mb-1 leading-tight">{studySession.queue[studySession.index].back}</div><div className="text-indigo-200 text-xs font-bold uppercase tracking-widest">{studySession.queue[studySession.index].front}</div></div>
+                                                            <div className="mb-2"><div className="text-2xl font-black mb-1">{studySession.queue[studySession.index].back}</div><div className="text-indigo-200 text-xs font-bold uppercase">{studySession.queue[studySession.index].front}</div></div>
                                                             <div className="bg-indigo-500/40 p-4 rounded-3xl border border-indigo-400/30 space-y-1">
                                                                 {(studySession.queue[studySession.index].verbList || []).map((item, idx) => (
                                                                     <div key={idx} onClick={(e) => { e.stopPropagation(); setRevealedForms(p => ({ ...p, [idx]: !p[idx] })); }} className={`flex justify-between items-center py-1.5 px-3 rounded-xl transition-colors cursor-pointer ${revealedForms[idx] ? 'bg-indigo-400/20' : 'hover:bg-white/5'}`}>
@@ -379,25 +405,25 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`mt-10 grid gap-3 transition-all duration-300 ${studySession.flipped && !studySession.isChanging ? 'opacity-100' : 'opacity-0 translate-y-10 pointer-events-none'}`}>{studySession.isRandom ? (<button onClick={() => handleRate(1)} className="bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-xl active:scale-95 transition-transform">Nächste Karte</button>) : (<div className="grid grid-cols-3 gap-3"><button onClick={() => handleRate(0)} className="bg-rose-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg transition-transform"><Icons.Shuffle /><span className="text-[10px] font-black uppercase text-center">Nicht</span></button><button onClick={() => handleRate(1)} className="bg-amber-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg transition-transform"><Icons.Book /><span className="text-[10px] font-black uppercase text-center">Mittel</span></button><button onClick={() => handleRate(2)} className="bg-emerald-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg transition-transform"><Icons.Plus /><span className="text-[10px] font-black uppercase text-center">Gut</span></button></div>)}</div>
+                                <div className={`mt-10 grid gap-3 transition-all duration-300 ${studySession.flipped && !studySession.isChanging ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>{studySession.isRandom ? (<button onClick={() => handleRate(1)} className="bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-xl active:scale-95 transition-transform">Nächste Karte</button>) : (<div className="grid grid-cols-3 gap-3"><button onClick={() => handleRate(0)} className="bg-rose-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg"><Icons.Shuffle /><span className="text-[10px] font-black uppercase text-center">Nicht</span></button><button onClick={() => handleRate(1)} className="bg-amber-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg"><Icons.Book /><span className="text-[10px] font-black uppercase text-center">Mittel</span></button><button onClick={() => handleRate(2)} className="bg-emerald-500 text-white py-5 rounded-3xl flex flex-col items-center gap-1 active:scale-90 shadow-lg"><Icons.Plus /><span className="text-[10px] font-black uppercase text-center">Gut</span></button></div>)}</div>
                             </div>
                         )}
 
                         {/* MODALS */}
                         {showNewModal.type && (
-                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setShowNewModal({type: null, id: null})}><div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">{showNewModal.id ? 'Bearbeiten' : 'Neu erstellen'}</h2><input autoFocus className="w-full p-4 rounded-2xl bg-slate-100 outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="Name..." value={modalInput} onChange={e => setModalInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (showNewModal.type === 'lang' ? saveLanguage() : saveCategory())} /><div className="flex gap-3"><button onClick={showNewModal.type === 'lang' ? saveLanguage : saveCategory} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-all uppercase text-xs">OK</button><button onClick={() => setShowNewModal({type: null, id: null})} className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-bold uppercase text-xs">X</button></div></div></div>
+                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setShowNewModal({type: null, id: null})}><div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">{showNewModal.id ? 'Bearbeiten' : 'Neu erstellen'}</h2><input autoFocus className="w-full p-4 rounded-2xl bg-slate-100 outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="Name..." value={modalInput} onChange={e => setModalInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (showNewModal.type === 'lang' ? saveLanguage() : saveCategory())} /><div className="flex gap-3"><button onClick={showNewModal.type === 'lang' ? saveLanguage : saveCategory} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg transition-all uppercase text-xs">OK</button><button onClick={() => setShowNewModal({type: null, id: null})} className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-bold uppercase text-xs">X</button></div></div></div>
                         )}
 
                         {showSettings && (
-                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setShowSettings(false)}><div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">Sicherung</h2><div className="space-y-4"><button onClick={exportAll} className="w-full flex items-center justify-between p-5 bg-indigo-50 text-indigo-700 rounded-2xl font-bold active:scale-95 transition-all">HTML exportieren <Icons.Download /></button><button onClick={() => fileInputRef.current.click()} className="w-full flex items-center justify-between p-5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold active:scale-95 transition-all">Importieren <Icons.Plus /></button></div><button onClick={() => setShowSettings(false)} className="w-full text-slate-400 py-2 text-sm font-bold uppercase tracking-widest text-center">Schließen</button></div></div>
+                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setShowSettings(false)}><div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">Sicherung</h2><div className="space-y-4"><button onClick={handleExport} className="w-full flex items-center justify-between p-5 bg-indigo-50 text-indigo-700 rounded-2xl font-bold active:scale-95 transition-all">HTML exportieren <Icons.Download /></button><button onClick={() => fileInputRef.current.click()} className="w-full flex items-center justify-between p-5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold active:scale-95 transition-all">Importieren <Icons.Plus /></button></div><button onClick={() => setShowSettings(false)} className="w-full text-slate-400 py-2 text-sm font-bold uppercase tracking-widest text-center">Schließen</button></div></div>
                         )}
 
                         {showRandomChoice && (
-                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-end sm:items-center justify-center p-4" onClick={() => setShowRandomChoice(false)}><div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl space-y-4 animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}><h2 className="text-lg font-black text-slate-800 text-center">Zufall</h2><button onClick={() => {const vO=cards.filter(c=>c.languageId===selectedLangId && c.type==='standard'); if(vO.length===0) return alert("Keine Vokabeln."); setStudySession({queue:vO.map(c=>{const f=Math.random()>0.5;return{...c,displayFront:f?c.back:c.front,displayBack:f?c.front:c.back}}).sort(()=>Math.random()-0.5),index:0,flipped:false,title:'Alles',isRandom:true,isChanging:false}); setShowRandomChoice(false); }} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-lg">Alles mischen</button><div className="max-h-60 overflow-y-auto space-y-2 pr-1"><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Ordner</p>{activeCategories.map(cat => (<button key={cat.id} onClick={() => {const fl=cards.filter(c=>c.categoryId===cat.id && c.type==='standard'); if(fl.length===0) return alert("Leer."); setStudySession({queue:fl.map(c=>{const f=Math.random()>0.5;return{...c,displayFront:f?c.back:c.front,displayBack:f?c.front:c.back}}).sort(()=>Math.random()-0.5),index:0,flipped:false,title:cat.name,isRandom:true,isChanging:false}); setShowRandomChoice(false); }} className="w-full bg-slate-100 text-slate-700 py-3 px-4 rounded-xl text-left font-bold text-sm truncate">{cat.name}</button>))}</div><button onClick={() => setShowRandomChoice(false)} className="w-full text-slate-400 py-2 text-sm font-bold uppercase text-center">Abbrechen</button></div></div>
+                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-end sm:items-center justify-center p-4" onClick={() => setShowRandomChoice(false)}><div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl space-y-4 animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}><h2 className="text-lg font-black text-slate-800 text-center">Zufall</h2><button onClick={() => {const vO=cards.filter(c=>c.languageId===selectedLangId && c.type==='standard'); if(vO.length===0) return alert("Keine Vokabeln."); setStudySession({queue:vO.map(c=>{const f=Math.random()>0.5;return{...c,displayFront:f?c.back:c.front,displayBack:f?c.front:c.back}}).sort(()=>Math.random()-0.5),index:0,flipped:false,title:'Alles',isRandom:true,isChanging:false}); setShowRandomChoice(false); }} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-lg active:scale-95 transition-all">Alles mischen</button><div className="max-h-60 overflow-y-auto space-y-2 pr-1"><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Ordner</p>{langCategories.map(cat => (<button key={cat.id} onClick={() => {const fl=cards.filter(c=>c.categoryId===cat.id && c.type==='standard'); if(fl.length===0) return alert("Leer."); setStudySession({queue:fl.map(c=>{const f=Math.random()>0.5;return{...c,displayFront:f?c.back:c.front,displayBack:f?c.front:c.back}}).sort(()=>Math.random()-0.5),index:0,flipped:false,title:cat.name,isRandom:true,isChanging:false}); setShowRandomChoice(false); }} className="w-full bg-slate-100 text-slate-700 py-3 px-4 rounded-xl text-left font-bold text-sm truncate">{cat.name}</button>))}</div><button onClick={() => setShowRandomChoice(false)} className="w-full text-slate-400 py-2 text-sm font-bold uppercase text-center">Abbrechen</button></div></div>
                         )}
 
                         {analysisCard && (
-                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setAnalysisCard(null)}><div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">Analyse</h2><div className="p-4 bg-indigo-50 rounded-2xl space-y-3"><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Box</span><span className="font-black text-indigo-700">{analysisCard.srs.repetitions}</span></div><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Ease</span><span className="font-black text-indigo-700">{analysisCard.srs.ease.toFixed(2)}x</span></div><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Versuche</span><span className="font-black text-indigo-700">{analysisCard.totalAttempts}</span></div></div><div className="space-y-2"><h3 className="text-[10px] font-black text-slate-400 uppercase border-b pb-1">Vorschau Intervall</h3>{[{l:'Nicht',v:0,c:'text-rose-600'},{l:'Mittel',v:1,c:'text-amber-600'},{l:'Gut',v:2,c:'text-emerald-600'}].map(opt => {const n=calcSRS(analysisCard,opt.v); return <div key={opt.v} className="flex justify-between items-center p-2 border border-slate-50 rounded-xl"><span className={`text-xs font-bold ${opt.c}`}>{opt.l}</span><div className="text-right text-[10px] font-black text-slate-800">In {n.interval} Tagen</div></div>})}</div><button onClick={() => setAnalysisCard(null)} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold uppercase text-center text-xs">OK</button></div></div>
+                            <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6" onClick={() => setAnalysisCard(null)}><div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}><h2 className="text-xl font-black text-slate-800">Analyse</h2><div className="p-4 bg-indigo-50 rounded-2xl space-y-3"><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Box</span><span className="font-black text-indigo-700">{analysisCard.srs.repetitions}</span></div><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Ease</span><span className="font-black text-indigo-700">{analysisCard.srs.ease.toFixed(2)}x</span></div><div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Versuche</span><span className="font-black text-indigo-700">{analysisCard.totalAttempts}</span></div></div><button onClick={() => setAnalysisCard(null)} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold uppercase text-center text-xs">OK</button></div></div>
                         )}
                     </main>
                 </div>
